@@ -1,0 +1,11 @@
+{
+  "name": "pixieset-downloader",
+  "version": "1.0.0",
+  "description": "Pixieset Batch Gallery Downloader",
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "cd client && npm install --legacy-peer-deps && npm run build",
+    "dev:server": "cd server && node index.js",
+    "dev:client": "cd client && npm run dev"
+  }
+}

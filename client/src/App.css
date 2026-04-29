@@ -428,44 +428,52 @@ body {
 /* ── Expand / Lightbox button ── */
 .expand-btn {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  width: 30px;
-  height: 30px;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.92);
-  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   opacity: 0;
   transform: scale(0.8);
-  transition: opacity 0.18s ease, transform 0.18s ease;
-  z-index: 3;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 5;
   padding: 0;
 }
 
 .expand-btn svg {
-  width: 15px;
-  height: 15px;
-  color: #202124;
+  width: 18px;
+  height: 18px;
+  color: white;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
 }
 
-/* Always visible on touch devices (mobile) */
-@media (hover: none) {
-  .expand-btn {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Visible on hover for desktop */
 .image-card:hover .expand-btn {
   opacity: 1;
   transform: scale(1);
 }
+
+/* Always visible and larger on touch devices */
+@media (pointer: coarse) {
+  .expand-btn {
+    opacity: 1;
+    transform: scale(1);
+    width: 42px;
+    height: 42px;
+    background: rgba(0, 0, 0, 0.4); /* Darker on mobile for better contrast */
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
 
 /* ── Full-screen Lightbox Modal ── */
 .lightbox-overlay {

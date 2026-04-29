@@ -29,16 +29,40 @@ if (isProduction) {
 
 
 
-// Global Browser Instance
+// Global Browser Instance with Auto-Relaunch
 let globalBrowser;
-(async () => {
+const launchBrowser = async () => {
     try {
-        globalBrowser = await chromium.launch({ headless: true });
-        console.log("Global browser pool initialized");
-    } catch(e) {
-        console.error("Failed to initialize browser:", e);
+        if (globalBrowser) await globalBrowser.close().catch(() => {});
+        globalBrowser = await chromium.launch({ 
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] 
+        });
+        console.log("--- BROWSER POOL RELAUNCHED ---");
+    } catch (e) {
+        console.error("CRITICAL: Failed to launch browser:", e);
     }
-})();
+};
+launchBrowser();
+
+// Scraping Concurrency Limit (Semaphore)
+let activeScrapes = 0;
+const MAX_CONCURRENT_SCRAPES = 2; // Pixieset is heavy; 2 is safe for most small VPS/Railway tiers
+const scrapeQueue = [];
+
+const processScrapeQueue = () => {
+    if (activeScrapes < MAX_CONCURRENT_SCRAPES && scrapeQueue.length > 0) {
+        const { resolve } = scrapeQueue.shift();
+        activeScrapes++;
+        resolve();
+    }
+};
+
+const waitForScrapeSlot = () => new Promise(resolve => {
+    scrapeQueue.push({ resolve });
+    processScrapeQueue();
+});
+
 
 // Deleted in-memory store for paid galleries
 
@@ -98,13 +122,16 @@ app.post('/api/extract', async (req, res) => {
         return res.status(400).json({ error: 'Invalid Pixieset URL' });
     }
 
-    console.log(`Starting extraction for: ${url}`);
+    console.log(`Extraction request: ${url} (Queue: ${scrapeQueue.length}, Active: ${activeScrapes})`);
+    
+    await waitForScrapeSlot();
     let context;
 
     try {
-        if (!globalBrowser) {
-            globalBrowser = await chromium.launch({ headless: true });
+        if (!globalBrowser || !globalBrowser.isConnected()) {
+            await launchBrowser();
         }
+
         context = await globalBrowser.newContext({
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
         });
@@ -339,8 +366,11 @@ app.post('/api/extract', async (req, res) => {
         res.status(500).json({ error: 'Failed to extract gallery: ' + error.message });
     } finally {
         if (context) await context.close();
+        activeScrapes--;
+        processScrapeQueue(); // Trigger next in line
     }
 });
+
 
 
 // Endpoint 2: Download provided images as a ZIP
@@ -417,13 +447,13 @@ app.post('/api/zip', async (req, res) => {
 });
 
 
-// Endpoint 3: Download single image
+// Endpoint 3: Download single image (Fixing broken stream call)
 app.get('/api/download-single', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'No URL provided' });
     
     try {
-        const stream = await downloadImage(url);
+        const buffer = await downloadImageBuffer(url);
         let filename = 'image.jpg';
         try {
             const parsedUrl = new URL(url);
@@ -434,14 +464,15 @@ app.get('/api/download-single', async (req, res) => {
             }
         } catch (e) {}
         
-        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Type', 'image/jpeg');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        stream.pipe(res);
+        res.send(buffer);
     } catch (err) {
         console.error('Single download error:', err);
         res.status(500).json({ error: 'Failed to download image' });
     }
 });
+
 
 // Serve React SPA for all non-API routes (only in production)
 if (isProduction) {

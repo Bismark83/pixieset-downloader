@@ -24,32 +24,33 @@ function App() {
 
   const saveToHistory = (galleryUrl, imagesArray, thumbnail) => {
     const name = getGalleryName(galleryUrl);
+    // Don't save the full images array in localStorage if it's too big (saves memory)
+    const imagesToSave = imagesArray.length > 300 ? undefined : imagesArray;
+    
     const newEntry = { 
         url: galleryUrl, 
         name, 
         imgCount: imagesArray.length, 
         thumbnail, 
-        images: imagesArray,
+        images: imagesToSave,
         date: new Date().toISOString() 
     };
     
     setHistory(prev => {
       const filtered = prev.filter(h => h.url !== galleryUrl);
-      let updated = [newEntry, ...filtered].slice(0, 10);
+      const updated = [newEntry, ...filtered].slice(0, 15);
       
       try {
           localStorage.setItem('pixiesetHistory', JSON.stringify(updated));
       } catch (e) {
-          // If QuotaExceededError (localStorage full), try saving without the large images array
-          console.warn("localStorage quota exceeded, saving without full image array", e);
-          const strippedEntry = { ...newEntry, images: undefined };
-          updated = [strippedEntry, ...filtered].slice(0, 10);
-          localStorage.setItem('pixiesetHistory', JSON.stringify(updated));
+          console.warn("Storage quota exceeded, removing detailed history data");
+          const simplified = updated.map(item => ({ ...item, images: undefined }));
+          localStorage.setItem('pixiesetHistory', JSON.stringify(simplified));
       }
-      
       return updated;
     });
   };
+
 
 
   const getGalleryName = (urlStr) => {
@@ -100,32 +101,13 @@ function App() {
   };
 
   const handleDownloadZip = async () => {
-    if (selectedImages.size === 0) return;
+    if (selectedImages.size === 0 || status === 'zipping') return;
 
     setStatus('zipping');
     setErrorMessage('');
 
     try {
       const imagesToZip = Array.from(selectedImages);
-      
-      if (imagesToZip.length <= 5) {
-        imagesToZip.forEach((imgUrl, index) => {
-          setTimeout(() => {
-            const downloadUrl = `/api/download-single?url=${encodeURIComponent(imgUrl)}`;
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.setAttribute('download', '');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }, index * 500);
-        });
-        
-        setStatus('success');
-        setTimeout(() => setStatus('preview'), 3000);
-        return;
-      }
-      
       const galleryName = getGalleryName(url);
       
       const response = await fetch('/api/zip', {
@@ -150,14 +132,17 @@ function App() {
       window.URL.revokeObjectURL(downloadUrl);
 
       setStatus('success');
-      setTimeout(() => setStatus('preview'), 3000);
+      setTimeout(() => setStatus('preview'), 3500);
       
     } catch (error) {
       console.error('Zip error:', error);
       setStatus('error');
       setErrorMessage(error.message);
+      // Let user stay in preview mode to try again
+      setTimeout(() => setStatus('preview'), 4000);
     }
   };
+
 
   const toggleImageSelection = (imgUrl) => {
     const newSelection = new Set(selectedImages);

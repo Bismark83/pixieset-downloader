@@ -476,7 +476,7 @@ app.get('/api/download-single', async (req, res) => {
 
 // Serve React SPA for all non-API routes (only in production)
 if (isProduction) {
-    app.get('*', (req, res) => {
+    app.get('/{*splat}', (req, res) => {
         res.sendFile(path.join(clientDist, 'index.html'));
     });
 }

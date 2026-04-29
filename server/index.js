@@ -7,6 +7,11 @@ const stealth = require('puppeteer-extra-plugin-stealth')();
 chromium.use(stealth);
 const archiver = require('archiver');
 const https = require('https');
+const fs = require('fs');
+
+console.log('--- SERVER STARTING ---');
+console.log('Current directory:', __dirname);
+console.log('Process.env.PORT:', process.env.PORT);
 
 const app = express();
 app.use(cors());
@@ -15,13 +20,13 @@ app.use(express.json({ limit: '50mb' }));
 
 // Serve the built React client if it exists (production mode)
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
-const fs = require('fs');
 const isProduction = fs.existsSync(clientDist);
 
+console.log('Production mode (dist folder found):', isProduction);
 if (isProduction) {
     app.use(express.static(clientDist));
-    console.log('Serving static React build from:', clientDist);
 }
+
 
 
 // Global Browser Instance
@@ -71,7 +76,20 @@ const downloadImageBuffer = (url, timeoutMs = 20000) => {
 
 // Endpoint 1: Extract Image URLs from Pixieset
 // Health check for Railway
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (req, res) => {
+    console.log('Health check requested at /api/health');
+    res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Always provide a response for / to help health checks
+app.get('/', (req, res) => {
+    if (isProduction) {
+        res.sendFile(path.join(clientDist, 'index.html'));
+    } else {
+        res.send('Server is running (Development mode - Dist not found)');
+    }
+});
+
 
 app.post('/api/extract', async (req, res) => {
     const { url } = req.body;
@@ -433,6 +451,6 @@ if (isProduction) {
 }
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, () => {
+    console.log(`--- SERVER IS LIVE ON PORT ${PORT} ---`);
 });
